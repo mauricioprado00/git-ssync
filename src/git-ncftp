@@ -1,0 +1,52 @@
+#!/bin/bash
+
+trap "exit 1" TERM
+export TOP_PID=$$
+
+# extract current branch name
+BRANCH=$(git name-rev HEAD 2> /dev/null | awk "{ print \$2 }")
+
+# get a version string, so archives will not be overwritten when creating
+# many of them
+VERSION=$(git describe --always --long)
+
+# get the current working scope
+SCOPE=$(git config ncftp.current-scope 2>/dev/null)
+
+#error echo
+echoerr() { echo "$@" 1>&2; }
+
+if [ "$SCOPE" = "" ]; then
+	SCOPE="default"
+fi
+
+echo working on scope \"$SCOPE\". \(to switch to \"newscope\" use: \"git config ncftp.current-scope newscope\" \)
+
+function get_config()
+{
+	retval=""
+	retval=$(git config ncftp.$SCOPE.$1)
+	echo $retval
+}
+
+function get_req_config()
+{
+	retval=$(get_config $1)
+	if [ "$retval" = "" ]; then
+		echoerr "Configuration \"$1\" for scope \"$SCOPE\" is required"
+		echoerr "Please define it using:"
+		echoerr "	git config ncftp.$SCOPE.$1 \"some value\""
+		kill -s TERM $TOP_PID
+	fi
+	echo $retval
+}
+
+user=$(get_req_config user)
+password=$(get_req_config password)
+host=$(get_req_config host)
+remote_dir=$(get_req_config remote-dir)
+
+echo "listing remote directory"
+echo $(ncftpls -u$user -p$password ftp://$host$remote_dir)
+
+exit
