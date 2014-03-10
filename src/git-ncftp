@@ -6,6 +6,9 @@ why just ncftp ? lets make it more generic
 
 ssync 
 
+    #configure params for all tools
+    git config ssync.tools.default.params.[paramname] [paramvalue]
+
     #configure params for tool
     git config ssync.tools.[tool].params.[paramname] [paramvalue]
 
