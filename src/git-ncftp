@@ -1,5 +1,89 @@
 #!/bin/bash
 
+<<COMMENT
+
+why just ncftp ? lets make it more generic
+
+ssync 
+
+    #configure params for tool
+    git config ssync.tools.[tool].params.[paramname] [paramvalue]
+
+    #configure tool retrieve last commit 
+    git config ssync.tools.[tool].getcommit '[shell script]'
+
+    #configure tool to set last commit
+    git ocnfig ssync.tools.[tool].setcommit '[shell script]'
+
+    #configure tool to upload all files in current directory
+    git config ssync.tools.[tool].push '[shell script]'
+
+    #configure params for tool and scope (this will override the tool params)
+    git config ssync.tools.[tool].scopes.[scope].params.[paramname]
+
+    #set current tool:
+    git config ssync.current.tool [tool]
+
+    #set current scope
+    git config ssync.current.scope [scope]
+
+    #set current scope branch (you will only be able to push from this branch)
+    git config ssync.current.branch [branchname]
+
+    #view remote log
+    git ssync log
+
+    #push commits
+    git ssync push
+
+    #set remote head
+    git ssync catchup [partial commit id]
+    
+
+example with ncftp as tool and default as scope
+    
+    #create a directory repository
+    mkdir testssync
+    cd testssync
+    git init
+    echo data > myfile
+    git add myfile
+    git commit -m "initial commit"
+
+    #configure params for tool
+    git config ssync.tools.ncftp.params.lastcommitfile "last_commit"
+
+    #configure tool to retrieve last commit
+    git config ssync.tools.ncftp.getcommit 'ncftpget -u$user -p$password . $domain$path$lastcommitfile; echo $lastcommitfile'
+    
+    #configure tool to set last commit
+    git config ssync.tools.ncftp.setcommit 'echo % > $lastcommitfile;ncftpput -u$user -p$password $domain $path $lastcommitfile'
+
+    #configure tool to upload everything in the current directory
+    git config ssync.tools.ncftp.push 'ncftpput -u$user -p$password $domain $path *'
+
+    #configure scope
+    git config ssync.tools.ncftp.default.params.user mauricio
+    git config ssync.tools.ncftp.default.params.password asdtyu
+    git config ssync.tools.ncftp.default.params.host localhost
+    git config ssync.tools.ncftp.default.params.path /www/testproj
+    
+
+notes.
+show to replace vars:
+use something like:
+path="ssync.tools.ncftp.default.params."
+git config --list | grep "$path" | sed "s/^$path//g"
+exports=$(git config --list | grep "$path" | sed "s/^$path//g" | tr "\n" ";")
+
+cheer='hello $user how are you'
+echo $(sh -c "$exports echo $cheer")
+
+
+for git log:
+git log $current
+COMMENT
+
 trap "exit 1" TERM
 export TOP_PID=$$
 
