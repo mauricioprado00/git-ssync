@@ -220,6 +220,10 @@ validate_scope
 
 echo "TOOL $TOOL, SCOPE: $SCOPE"
 
+list_tool_scopes $TOOL
+
+
+echo "yey"
 end_process	
 
 
