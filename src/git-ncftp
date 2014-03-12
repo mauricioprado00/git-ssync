@@ -23,6 +23,13 @@ eval echo $cheer
 
 for git log:
 git log $current
+
+#echo "${*:1:1}"
+#IFS=', ' read -a args <<< "$@"
+#echo ${args[0]}
+#echo ${args[1]}
+#echo ${args[2]}
+
 COMMENT
 
 trap "exit 1" TERM
@@ -230,6 +237,32 @@ function validate_scope()
    fi
 }
 
+function process_log()
+{
+   if [ "$1" = "log" ]; then
+      echo "retrieve remote log"
+      end_process
+   fi
+}
+
+function process_catchup()
+{
+   if [ "$1" = "catchup" ]; then
+      commit=$2
+      echo "catching up to $commit"
+      end_process
+   fi
+}
+
+function process_push()
+{
+   if [ "$1" = "push" ]; then
+      commit=$2
+      echo "pushing to remote environment"
+      end_process
+   fi
+}
+
 show_help $@
 validate_tool
 validate_scope
@@ -237,6 +270,9 @@ validate_scope
 echo "TOOL $TOOL, SCOPE: $SCOPE"
 
 
+process_log "${@:1}"
+process_catchup "${@:1}"
+process_push "${@:1}"
 end_process   
 
 
