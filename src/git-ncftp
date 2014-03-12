@@ -118,10 +118,10 @@ commands:
    git config ssync.tools.ncftp.scopes.default.params.lastcommitfile "last_commit"
 
    #configure tool to retrieve last commit
-   git config ssync.tools.ncftp.getcommit 'ncftpget -u\$user -p\$password . \$domain\$path\$lastcommitfile; echo \$lastcommitfile'
+   git config ssync.tools.ncftp.getcommit 'ncftpget -u$user -p$password . $domain$path$lastcommitfile; echo \$lastcommitfile'
 
    #configure tool to set last commit
-   git config ssync.tools.ncftp.setcommit 'echo % > \$lastcommitfile;ncftpput -u\$user -p\$password \$domain \$path \$lastcommitfile'
+   git config ssync.tools.ncftp.setcommit 'echo % > $lastcommitfile;ncftpput -u$user -p$password $domain $path $lastcommitfile'
 
    #configure tool to upload everything in the current directory
    git config ssync.tools.ncftp.push 'ncftpput -u\$user -p\$password \$domain \$path *'
@@ -132,7 +132,7 @@ commands:
    #configure scope default
    git config ssync.tools.ncftp.scopes.default.params.user mauricio
    git config ssync.tools.ncftp.scopes.default.params.password asdtyu
-   git config ssync.tools.ncftp.scopes.default.params.host localhost
+   git config ssync.tools.ncftp.scopes.default.params.domain localhost
    git config ssync.tools.ncftp.scopes.default.params.path /www/testproj
 HELP
    end_process
@@ -237,6 +237,46 @@ function validate_scope()
    fi
 }
 
+function expand_commitid()
+{
+   local commit=$(git merge-base $1 $BRANCH  2>/dev/null)
+   local status=$?
+   if [ $status -ne 0 ]; then
+      return 1
+   fi
+   echo $commit
+}
+
+function get_tool_config()
+{
+   retval=""
+   retval=$(git config ssync.tools.$TOOL.$1)
+   echo $retval
+}
+
+function get_req_tool_config()
+{
+   retval=$(get_tool_config $1)
+   if [ "$retval" = "" ]; then
+      echoerr "The tool configuration \"$1\" is required"
+      echoerr "Please define it using:"
+      echoerr "   git config ssync.tools.$TOOL.$1 \"some value\""
+      end_process
+   fi
+   echo $retval
+}
+
+function extract_tool_scope_params()
+{
+   #extracting first the default params
+   path="ssync.tools.$TOOL.scopes.default.params."
+   eval $(git config --list | grep "$path" | sed "s/^$path//g" | tr "\n" ";")
+
+   #afteward the scoped params
+   path="ssync.tools.$TOOL.scopes.$SCOPE.params."
+   eval $(git config --list | grep "$path" | sed "s/^$path//g" | tr "\n" ";")
+}
+
 function process_log()
 {
    if [ "$1" = "log" ]; then
@@ -248,8 +288,25 @@ function process_log()
 function process_catchup()
 {
    if [ "$1" = "catchup" ]; then
-      commit=$2
+      if [ "$2" = "" ]; then
+         commit=$(expand_commitid HEAD)
+      else
+         commit=$(expand_commitid $2)
+         if [ "$commit" = "" ]; then
+            echo "the commit id \"$2\" is not valid"
+            return
+         fi
+      fi
+      echo "using commit id: $commit"
+
+      setcommit=$(get_req_tool_config setcommit)
+      extract_tool_scope_params
+      dir=`mktemp -d` && cd $dir
       echo "catching up to $commit"
+      setcommit=${setcommit/\%/$commit}
+      eval $setcommit
+      rm -Rf $dir
+
       end_process
    fi
 }
@@ -268,7 +325,6 @@ validate_tool
 validate_scope
 
 echo "TOOL $TOOL, SCOPE: $SCOPE"
-
 
 process_log "${@:1}"
 process_catchup "${@:1}"
