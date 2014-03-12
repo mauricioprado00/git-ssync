@@ -118,7 +118,7 @@ commands:
    git config ssync.tools.ncftp.scopes.default.params.lastcommitfile "last_commit"
 
    #configure tool to retrieve last commit
-   git config ssync.tools.ncftp.getcommit 'ncftpget -u$user -p$password . $domain$path$lastcommitfile; echo \$lastcommitfile'
+   git config ssync.tools.ncftp.getcommit 'ncftpget -u$user -p$password $domain . $path$lastcommitfile; cat $lastcommitfile'
 
    #configure tool to set last commit
    git config ssync.tools.ncftp.setcommit 'echo % > $lastcommitfile;ncftpput -u$user -p$password $domain $path $lastcommitfile'
@@ -133,7 +133,7 @@ commands:
    git config ssync.tools.ncftp.scopes.default.params.user mauricio
    git config ssync.tools.ncftp.scopes.default.params.password asdtyu
    git config ssync.tools.ncftp.scopes.default.params.domain localhost
-   git config ssync.tools.ncftp.scopes.default.params.path /www/testproj
+   git config ssync.tools.ncftp.scopes.default.params.path /www/testproj/
 HELP
    end_process
 
@@ -280,7 +280,22 @@ function extract_tool_scope_params()
 function process_log()
 {
    if [ "$1" = "log" ]; then
+      extract_tool_scope_params
+      getcommit=$(get_req_tool_config getcommit)
+      repo=$(pwd)
+      dir=`mktemp -d` && cd $dir
       echo "retrieve remote log"
+      rcommit=$(eval $getcommit)
+      rm -Rf $dir
+      cd $repo
+      commit=$(expand_commitid $rcommit)
+
+      echo "the commit: $commit";
+      if [ "$commit" = "" ]; then
+         echo "The remote repository is set to the INVALID (or ahead local repository) commit id: $rcommit"
+      else
+         git log $commit
+      fi
       end_process
    fi
 }
