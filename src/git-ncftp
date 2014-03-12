@@ -62,9 +62,10 @@ usage: git ssync <command>
 
 commands:
 
-   log      shows the logs of the latest uploaded commit on the server
-   push      push the current local branch HEAD into the remote environment
-   catchup      sets the remote HEAD to the current local branch HEAD
+   init        initialzes the remote repository
+   log         shows the logs of the latest uploaded commit on the server
+   push        push the current local branch HEAD into the remote environment
+   catchup     sets the remote HEAD to the current local branch HEAD
 
 
    #configure params for all tools
@@ -139,6 +140,28 @@ HELP
 
    fi
 }
+
+function blue()
+{
+   echo $'\033[34m'$*$'.\033[0m\n'
+}
+
+function green()
+{
+   echo $'\033[32m'$*$'.\033[0m\n'
+}
+
+function red()
+{
+   echo $'\033[31m'$*$'.\033[0m\n'
+}
+
+function cyan()
+{
+   echo $'\033[36m'$*$'.\033[0m\n'
+}
+
+
 
 function get_tools()
 {
@@ -277,6 +300,7 @@ function extract_tool_scope_params()
    eval $(git config --list | grep "$path" | sed "s/^$path//g" | tr "\n" ";")
 }
 
+
 function process_log()
 {
    if [ "$1" = "log" ]; then
@@ -284,13 +308,28 @@ function process_log()
       getcommit=$(get_req_tool_config getcommit)
       repo=$(pwd)
       dir=`mktemp -d` && cd $dir
-      echo "retrieve remote log"
+      echo $(cyan "retrieving remote log")
+
+      echo -e "\033[33;1m"
       rcommit=$(eval $getcommit)
+      echo -e "\033[0m"
+
       rm -Rf $dir
       cd $repo
+
+      if [ "$rcommit" = "" ]; then
+         echo $(red "Seems like the remote repository is not initialized")
+         echo "you can initialize by using: "
+         echo $'\tgit ssync init'
+         echo $'\t(it will upload all the content of the repository)\n'
+         echo "or you can use git catchup: "
+         echo $'\tgit catchup [commit_id]';
+         echo $'\t(it will mark the remote HEAD repository to the provided commit_id, or to HEAD if no commit id is provided)'
+         end_process
+      fi
+
       commit=$(expand_commitid $rcommit)
 
-      echo "the commit: $commit";
       if [ "$commit" = "" ]; then
          echo "The remote repository is set to the INVALID (or ahead local repository) commit id: $rcommit"
       else
@@ -312,14 +351,17 @@ function process_catchup()
             return
          fi
       fi
-      echo "using commit id: $commit"
 
       setcommit=$(get_req_tool_config setcommit)
       extract_tool_scope_params
       dir=`mktemp -d` && cd $dir
-      echo "catching up to $commit"
+      echo $(cyan "catching up to $commit")
       setcommit=${setcommit/\%/$commit}
+
+      echo -e "\033[33;1m"
       eval $setcommit
+      echo -e "\033[0m"
+
       rm -Rf $dir
 
       end_process
