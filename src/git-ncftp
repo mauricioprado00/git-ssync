@@ -300,24 +300,27 @@ function extract_tool_scope_params()
    eval $(git config --list | grep "$path" | sed "s/^$path//g" | tr "\n" ";")
 }
 
-
-function process_log()
+function remotehead()
 {
-   if [ "$1" = "log" ]; then
-      extract_tool_scope_params
-      getcommit=$(get_req_tool_config getcommit)
-      repo=$(pwd)
-      dir=`mktemp -d` && cd $dir
-      echo $(cyan "retrieving remote log")
+   local __resultvar=$1
+   local __rcommit
+   local __dieifwrong=$2 # 1 by default
 
-      echo -e "\033[33;1m"
-      rcommit=$(eval $getcommit)
-      echo -e "\033[0m"
+   extract_tool_scope_params
+   getcommit=$(get_req_tool_config getcommit)
+   repo=$(pwd)
+   dir=`mktemp -d` && cd $dir
+   echo $(cyan "retrieving remote log")
 
-      rm -Rf $dir
-      cd $repo
+   echo -e "\033[33;1m"
+   __rcommit=$(eval $getcommit)
+   echo -e "\033[0m"
 
-      if [ "$rcommit" = "" ]; then
+   rm -Rf $dir
+   cd $repo
+
+   if [ "$__dieifwrong" = "" ] || [ "$__dieifwrong" = "1" ]; then
+      if [ "$__rcommit" = "" ]; then
          echo $(red "Seems like the remote repository is not initialized")
          echo "you can initialize by using: "
          echo $'\tgit ssync init'
@@ -327,6 +330,16 @@ function process_log()
          echo $'\t(it will mark the remote HEAD repository to the provided commit_id, or to HEAD if no commit id is provided)'
          end_process
       fi
+   fi
+
+
+   eval $__resultvar=$__rcommit
+}
+
+function process_log()
+{
+   if [ "$1" = "log" ]; then
+      remotehead rcommit
 
       commit=$(expand_commitid $rcommit)
 
@@ -339,17 +352,27 @@ function process_log()
    fi
 }
 
+function commitid_orhead()
+{
+   local commit
+   if [ "$1" = "" ]; then
+      commit=$(expand_commitid HEAD)
+   else
+      commit=$(expand_commitid $1)
+      if [ "$commit" = "" ]; then
+         return
+      fi
+   fi
+   echo $commit
+}
+
 function process_catchup()
 {
    if [ "$1" = "catchup" ]; then
-      if [ "$2" = "" ]; then
-         commit=$(expand_commitid HEAD)
-      else
-         commit=$(expand_commitid $2)
-         if [ "$commit" = "" ]; then
-            echo "the commit id \"$2\" is not valid"
-            return
-         fi
+      commit=$(commitid_orhead $2)
+      if [ "$commit" = "" ]; then
+         echo $(red "the commit id \"$2\" is not valid")
+         end_process
       fi
 
       setcommit=$(get_req_tool_config setcommit)
@@ -371,8 +394,13 @@ function process_catchup()
 function process_push()
 {
    if [ "$1" = "push" ]; then
-      commit=$2
-      echo "pushing to remote environment"
+      commit=$(commitid_orhead $2)
+      if [ "$commit" = "" ]; then
+         echo $(red "the commit id \"$2\" is not valid")
+         end_process
+      fi
+
+      echo "pushing to remote environment $commit"
       end_process
    fi
 }
