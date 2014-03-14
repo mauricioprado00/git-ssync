@@ -403,13 +403,13 @@ function catchup()
    echo $(blue "setting remote head to $commit")
    setcommit=$(get_req_tool_config setcommit)
    extract_tool_scope_params
-   dir=`mktemp -d` && cd $dir
+   dir=`mktemp -d` && pushd $dir > /dev/null
    setcommit=${setcommit/\%/$commit}
 
    echo -e "\033[33;1m"
    eval $setcommit
    echo -e "\033[0m"
-
+   popd
    rm -Rf $dir
 }
 
@@ -425,13 +425,12 @@ function push()
    pushd $ROOT > /dev/null
    tgz=`mktemp`
 
-   tar -zcf $tgz $(git diff $from..$to --name-only)
+   tar -cf $tgz $(git diff $from..$to --name-only)
    popd > /dev/null
 
    #create temp, go there, extract and remove compressed file
-   dir=`mktemp -d`
-   cd $dir
-   tar -zxf $tgz
+   dir=`mktemp -d` && pushd $dir > /dev/null
+   tar -xf $tgz
    rm $tgz
    #asterisk=$(echo *)
 
@@ -444,7 +443,7 @@ function push()
    echo -e "\033[33;1m"
    eval $push
    echo -e "\033[0m"
-   cd $ROOT
+   popd > /dev/null
    rm -Rf $dir
 }
 
@@ -509,6 +508,7 @@ function process_push()
             if [ "$oldest" = "$rcommit" ]; then
                push $rcommit $commit
                catchup $commit
+               git diff $rcommit..$commit --stat
                echo $(green "remote environment updated to $commit")
             else
                echo $(red "Cannot push. The remote environment is ahead. $rcommit");
