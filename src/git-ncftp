@@ -310,7 +310,7 @@ function remotehead()
    getcommit=$(get_req_tool_config getcommit)
    repo=$(pwd)
    dir=`mktemp -d` && cd $dir
-   echo $(cyan "retrieving remote log")
+   echo $(blue "obtaining pushed last commit")
 
    echo -e "\033[33;1m"
    __rcommit=$(eval $getcommit)
@@ -326,7 +326,7 @@ function remotehead()
          echo $'\tgit ssync init'
          echo $'\t(it will upload all the content of the repository)\n'
          echo "or you can use git catchup: "
-         echo $'\tgit catchup [commit_id]';
+         echo $'\tgit ssync catchup [commit_id]';
          echo $'\t(it will mark the remote HEAD repository to the provided commit_id, or to HEAD if no commit id is provided)'
          end_process
       fi
@@ -339,6 +339,7 @@ function remotehead()
 function process_log()
 {
    if [ "$1" = "log" ]; then
+      echo $(cyan "retrieving remote log")
       remotehead rcommit
 
       commit=$(expand_commitid $rcommit)
@@ -366,6 +367,23 @@ function commitid_orhead()
    echo $commit
 }
 
+function catchup()
+{
+   local commit=$1
+   
+   echo $(blue "setting remote head to $commit")
+   setcommit=$(get_req_tool_config setcommit)
+   extract_tool_scope_params
+   dir=`mktemp -d` && cd $dir
+   setcommit=${setcommit/\%/$commit}
+
+   echo -e "\033[33;1m"
+   eval $setcommit
+   echo -e "\033[0m"
+
+   rm -Rf $dir
+}
+
 function process_catchup()
 {
    if [ "$1" = "catchup" ]; then
@@ -375,17 +393,8 @@ function process_catchup()
          end_process
       fi
 
-      setcommit=$(get_req_tool_config setcommit)
-      extract_tool_scope_params
-      dir=`mktemp -d` && cd $dir
       echo $(cyan "catching up to $commit")
-      setcommit=${setcommit/\%/$commit}
-
-      echo -e "\033[33;1m"
-      eval $setcommit
-      echo -e "\033[0m"
-
-      rm -Rf $dir
+      catchup $commit
 
       end_process
    fi
@@ -400,8 +409,30 @@ function process_push()
          end_process
       fi
 
-      echo "pushing to remote environment $commit"
-      end_process
+      echo $(cyan "pushing commit $commit")
+      remotehead rcommit
+      
+      if [ "$rcommit" = "$commit" ]; then
+         echo $(green "remote repository is up to date")
+         end_process
+      else
+         rcommit=$(expand_commitid $rcommit)
+         if [ "$rcommit" = "" ]; then
+            echo "The remote repository is set to the INVALID (or ahead local repository) commit id: $rcommit"
+         else
+            oldest=$(git merge-base $commit $rcommit)
+            
+            #this validation does not make very much sense, 
+            #if the commit does not exist on local repository then it 
+            #must be ahead and would have fail the expand_commitid. anyways
+            if [ "$oldest" = "$rcommit" ]; then
+               echo $(blue "pushing to remote environment $commit")
+               catchup $commit
+               echo $(green "remote environment updated to $commit")
+               end_process
+            fi
+         fi
+      fi
    fi
 }
 
