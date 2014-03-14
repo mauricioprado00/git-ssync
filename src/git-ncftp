@@ -498,13 +498,40 @@ function process_push()
             if [ "$oldest" = "$rcommit" ]; then
                push $rcommit $commit
                catchup $commit
-               echo $(green "remote environment updated to $2")
+               echo $(green "remote environment updated to $commit")
             else
                echo $(red "Cannot push. The remote environment is ahead. $rcommit");
             fi
          fi
       fi
    fi
+}
+
+function process_status()
+{
+   if [ "$1" = "status" ]; then
+      commit=$(commitid_orhead)
+      echo $(cyan "obtaining repository status")
+      remotehead rrcommit
+
+      if [ "$rrcommit" = "$commit" ]; then
+         echo $(green "remote repository is up to date")
+         end_process
+      else
+         rcommit=$(expand_commitid $rrcommit)
+         if [ "$rcommit" = "" ]; then
+            echo $(red "The remote repository is set to the INVALID (or ahead local repository) commit id: $rrcommit")
+         else
+            acommits=$(git rev-list HEAD --count)
+            arcommits=$(git rev-list $rcommit --count)
+            aheadby=$(expr $acommits - $arcommits)
+            git diff $rcommit..HEAD --stat
+            echo $(green "the remote repository is behind by $aheadby commits. $rcommit")
+         fi
+      fi      
+
+      echo $commit
+   fi   
 }
 
 show_help $@
@@ -514,6 +541,7 @@ validate_scope
 
 echo "TOOL $TOOL, SCOPE: $SCOPE"
 
+process_status "${@:1}"
 process_log "${@:1}"
 process_catchup "${@:1}"
 process_push "${@:1}"
