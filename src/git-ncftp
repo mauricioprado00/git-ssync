@@ -37,6 +37,9 @@ export TOP_PID=$$
 
 function init()
 {
+   # base repository directory
+   ROOT=$(git rev-parse --show-toplevel)
+
    # extract current branch name
    BRANCH=$(git name-rev HEAD 2> /dev/null | awk "{ print \$2 }")
 
@@ -120,7 +123,16 @@ if [ "$vrb" = "example" ]; then
    mkdir testssync
    cd testssync
    git init
-   date > myfile
+   date +%N > myfile
+   git add myfile
+   git commit -m "initial commit"
+   date +%N > myfile
+   git add myfile
+   git commit -m "initial commit"
+   date +%N > myfile
+   git add myfile
+   git commit -m "initial commit"
+   date +%N > myfile
    git add myfile
    git commit -m "initial commit"
 
@@ -128,13 +140,13 @@ if [ "$vrb" = "example" ]; then
    git config ssync.tools.ncftp.scopes.default.params.lastcommitfile "last_commit"
 
    #configure tool to retrieve last commit
-   git config ssync.tools.ncftp.getcommit 'ncftpget -u$user -p$password $domain . $path$lastcommitfile; cat $lastcommitfile'
+   git config ssync.tools.ncftp.getcommit 'ncftpget -u\$user -p\$password \$domain . \$path\$lastcommitfile; cat \$lastcommitfile'
 
    #configure tool to set last commit
-   git config ssync.tools.ncftp.setcommit 'echo % > $lastcommitfile;ncftpput -u$user -p$password $domain $path $lastcommitfile'
+   git config ssync.tools.ncftp.setcommit 'echo % > \$lastcommitfile;ncftpput -u\$user -p\$password \$domain \$path \$lastcommitfile'
 
    #configure tool to upload everything in the current directory
-   git config ssync.tools.ncftp.push 'ncftpput -u\$user -p\$password \$domain \$path *'
+   git config ssync.tools.ncftp.push 'ncftpput -R -u\$user -p\$password \$domain \$path \*'
 
    #configure params for dummy tool
    git config ssync.tools.dummy.scopes.default.params.some "some value"
@@ -298,15 +310,29 @@ function get_req_tool_config()
    echo $retval
 }
 
+function extract_params
+{
+   local _path=$1
+   local _dir=$2
+
+   config=$(git config --list | grep "$_path" | sed "s/^$_path//g" | tr "\n" ";")
+   if [ "$_dir" = "" ]; then
+      eval $config
+   else
+      pushd $_dir > /dev/null
+      eval $config
+      popd > /dev/null
+   fi
+}
+
 function extract_tool_scope_params()
 {
+   local _dir=$1
    #extracting first the default params
-   path="ssync.tools.$TOOL.scopes.default.params."
-   eval $(git config --list | grep "$path" | sed "s/^$path//g" | tr "\n" ";")
+   extract_params "ssync.tools.$TOOL.scopes.default.params." $_dir
 
    #afteward the scoped params
-   path="ssync.tools.$TOOL.scopes.$SCOPE.params."
-   eval $(git config --list | grep "$path" | sed "s/^$path//g" | tr "\n" ";")
+   extract_params "ssync.tools.$TOOL.scopes.$SCOPE.params." $_dir
 }
 
 #returns the remote commit id into the provided varname
@@ -379,6 +405,38 @@ function catchup()
    rm -Rf $dir
 }
 
+#push files into the remote repository
+function push()
+{
+   local from=$1
+   local to=$2
+   echo $(blue "pushing to remote environment $1 -> $2")
+
+   #compress the file, ensure we are on the root of the repo
+   echo $(blue "compressing files")
+   pushd $ROOT > /dev/null
+   tgz=`mktemp`
+   tar -zcf $tgz $(git diff $from..$to --name-only)
+   popd > /dev/null
+
+   #create temp, go there, extract and remove compressed file
+   dir=`mktemp -d`
+   cd $dir
+   tar -zxf $tgz
+   rm $tgz
+   cd $ROOT
+
+   #now we valuate the configs in the given directory
+   push=$(get_req_tool_config push)
+   extract_tool_scope_params $dir
+
+   #let them handle the upload
+   echo -e "\033[33;1m"
+   eval $push
+   echo -e "\033[0m"
+   rm -Rf $dir
+}
+
 #process the user request to get the remote log
 function process_log()
 {
@@ -389,7 +447,7 @@ function process_log()
       commit=$(expand_commitid $rcommit)
 
       if [ "$commit" = "" ]; then
-         echo "The remote repository is set to the INVALID (or ahead local repository) commit id: $rcommit"
+         echo $(red "The remote repository is set to the INVALID (or ahead local repository) commit id: $rcommit")
       else
          git log $commit
       fi
@@ -425,26 +483,24 @@ function process_push()
       fi
 
       echo $(cyan "pushing commit $commit")
-      remotehead rcommit
+      remotehead rrcommit
       
-      if [ "$rcommit" = "$commit" ]; then
+      if [ "$rrcommit" = "$commit" ]; then
          echo $(green "remote repository is up to date")
          end_process
       else
-         rcommit=$(expand_commitid $rcommit)
+         rcommit=$(expand_commitid $rrcommit)
          if [ "$rcommit" = "" ]; then
-            echo "The remote repository is set to the INVALID (or ahead local repository) commit id: $rcommit"
+            echo $(red "The remote repository is set to the INVALID (or ahead local repository) commit id: $rrcommit")
          else
             oldest=$(git merge-base $commit $rcommit)
             
-            #this validation does not make very much sense, 
-            #if the commit does not exist on local repository then it 
-            #must be ahead and would have fail the expand_commitid. anyways
             if [ "$oldest" = "$rcommit" ]; then
-               echo $(blue "pushing to remote environment $commit")
+               push $rcommit $commit
                catchup $commit
-               echo $(green "remote environment updated to $commit")
-               end_process
+               echo $(green "remote environment updated to $2")
+            else
+               echo $(red "Cannot push. The remote environment is ahead. $rcommit");
             fi
          fi
       fi
