@@ -534,6 +534,44 @@ function process_status()
    fi   
 }
 
+function process_configure()
+{
+   if [ "$1" = "configure" ]; then
+      if [ "$2" = "ncftp" ]; then
+
+         echo $(cyan "configuring ncftp")
+         echo $(blue "adding global ssync tool ncftp")
+         #configure params for tool
+         git config --global ssync.tools.ncftp.scopes.default.params.lastcommitfile "last_commit"
+
+         #configure tool to retrieve last commit
+         git config --global ssync.tools.ncftp.getcommit 'ncftpget -u$user -p$password $domain . $path$lastcommitfile; cat $lastcommitfile'
+
+         #configure tool to set last commit
+         git config --global ssync.tools.ncftp.setcommit 'echo % > $lastcommitfile;ncftpput -u$user -p$password $domain $path $lastcommitfile'
+
+         #configure tool to upload everything in the current directory
+         git config --global ssync.tools.ncftp.push 'ncftpput -R -u$user -p$password $domain $path \*'
+
+         local _domain=$3
+         local _user=$4
+         local _password=$5
+         local _path=$6
+         echo $(blue "setting repository ncftp config to:")
+         echo "domain: $_domain"
+         echo "user: $_user"
+         echo "password: $_password"
+         echo "path: $_path"
+
+         #configure scope default
+         git config ssync.tools.ncftp.scopes.default.params.user $_user
+         git config ssync.tools.ncftp.scopes.default.params.password $_password
+         git config ssync.tools.ncftp.scopes.default.params.domain $_domain
+         git config ssync.tools.ncftp.scopes.default.params.path $_path
+      fi
+   fi
+}
+
 show_help $@
 init
 validate_tool
@@ -541,6 +579,7 @@ validate_scope
 
 echo "TOOL $TOOL, SCOPE: $SCOPE"
 
+process_configure "${@:1}"
 process_status "${@:1}"
 process_log "${@:1}"
 process_catchup "${@:1}"
