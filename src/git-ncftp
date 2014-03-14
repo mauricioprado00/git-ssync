@@ -186,7 +186,9 @@ function cyan()
 
 function get_tools()
 {
+   pushd $ROOT > /dev/null
    git config --list | grep ssync\.tools | sed "s/^ssync\\.tools\\.//g" | sed "s#\\..\+##g" | sort | uniq
+   popd > /dev/null
 }
 
 function end_process()
@@ -209,7 +211,9 @@ function list_tool_scopes()
 {
    tool=$1
    tools=$(get_tools)
+   pushd $ROOT > /dev/null
    git config --list | grep ssync\.tools\.$tool\.scopes\. | sed "s/^ssync\\.tools\\.$tool\\.scopes\\.//g" | sed "s#\\..\+##g" | sort | uniq
+   popd > /dev/null
 }
 
 function scope_exists()
@@ -294,7 +298,9 @@ function expand_commitid()
 function get_tool_config()
 {
    retval=""
+   pushd $ROOT > /dev/null
    retval=$(git config ssync.tools.$TOOL.$1)
+   popd  > /dev/null
    echo $retval
 }
 
@@ -315,7 +321,9 @@ function extract_params
    local _path=$1
    local _dir=$2
 
+   pushd $ROOT > /dev/null
    config=$(git config --list | grep "$_path" | sed "s/^$_path//g" | tr "\n" ";")
+   popd > /dev/null
    if [ "$_dir" = "" ]; then
       eval $config
    else
@@ -416,6 +424,7 @@ function push()
    echo $(blue "compressing files")
    pushd $ROOT > /dev/null
    tgz=`mktemp`
+
    tar -zcf $tgz $(git diff $from..$to --name-only)
    popd > /dev/null
 
@@ -424,16 +433,18 @@ function push()
    cd $dir
    tar -zxf $tgz
    rm $tgz
-   cd $ROOT
+   #asterisk=$(echo *)
 
    #now we valuate the configs in the given directory
    push=$(get_req_tool_config push)
+   #push=${push/\\\*/\$asterisk}
    extract_tool_scope_params $dir
 
    #let them handle the upload
    echo -e "\033[33;1m"
    eval $push
    echo -e "\033[0m"
+   cd $ROOT
    rm -Rf $dir
 }
 
@@ -551,7 +562,7 @@ function process_configure()
          git config --global ssync.tools.ncftp.setcommit 'echo % > $lastcommitfile;ncftpput -u$user -p$password $domain $path $lastcommitfile'
 
          #configure tool to upload everything in the current directory
-         git config --global ssync.tools.ncftp.push 'ncftpput -R -u$user -p$password $domain $path \*'
+         git config --global ssync.tools.ncftp.push 'ncftpput -R -u$user -p$password $domain $path *'
 
          local _domain=$3
          local _user=$4
@@ -568,18 +579,19 @@ function process_configure()
          git config ssync.tools.ncftp.scopes.default.params.password $_password
          git config ssync.tools.ncftp.scopes.default.params.domain $_domain
          git config ssync.tools.ncftp.scopes.default.params.path $_path
+         end_process
       fi
    fi
 }
 
 show_help $@
 init
+process_configure "${@:1}"
 validate_tool
 validate_scope
 
 echo "TOOL $TOOL, SCOPE: $SCOPE"
 
-process_configure "${@:1}"
 process_status "${@:1}"
 process_log "${@:1}"
 process_catchup "${@:1}"
