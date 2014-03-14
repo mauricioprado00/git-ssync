@@ -35,22 +35,25 @@ COMMENT
 trap "exit 1" TERM
 export TOP_PID=$$
 
-# extract current branch name
-BRANCH=$(git name-rev HEAD 2> /dev/null | awk "{ print \$2 }")
+function init()
+{
+   # extract current branch name
+   BRANCH=$(git name-rev HEAD 2> /dev/null | awk "{ print \$2 }")
 
-# get a version string, so archives will not be overwritten when creating
-# many of them
-VERSION=$(git describe --always --long)
+   # get a version string, so archives will not be overwritten when creating
+   # many of them
+   VERSION=$(git describe --always --long)
 
-# get the current working tool
-TOOL=$(git config ssync.current.tool)
+   # get the current working tool
+   TOOL=$(git config ssync.current.tool)
 
-# get the current working scope
-SCOPE=$(git config ssync.current.scope)
+   # get the current working scope
+   SCOPE=$(git config ssync.current.scope)
+
+}
 
 #error echo
 echoerr() { echo "$@" 1>&2; }
-
 
 function show_help()
 {
@@ -104,14 +107,20 @@ commands:
    #set remote head
    git ssync catchup [partial commit id]
 
+HELP
+   end_process
 
-   example with ncftp as tool and default as scope
+   fi
+
+if [ "$vrb" = "example" ]; then
+   cat << HELP
+   #example with ncftp as tool and default as scope
 
    #create a directory repository
    mkdir testssync
    cd testssync
    git init
-   echo data > myfile
+   date > myfile
    git add myfile
    git commit -m "initial commit"
 
@@ -300,6 +309,7 @@ function extract_tool_scope_params()
    eval $(git config --list | grep "$path" | sed "s/^$path//g" | tr "\n" ";")
 }
 
+#returns the remote commit id into the provided varname
 function remotehead()
 {
    local __resultvar=$1
@@ -336,23 +346,7 @@ function remotehead()
    eval $__resultvar=$__rcommit
 }
 
-function process_log()
-{
-   if [ "$1" = "log" ]; then
-      echo $(cyan "retrieving remote log")
-      remotehead rcommit
-
-      commit=$(expand_commitid $rcommit)
-
-      if [ "$commit" = "" ]; then
-         echo "The remote repository is set to the INVALID (or ahead local repository) commit id: $rcommit"
-      else
-         git log $commit
-      fi
-      end_process
-   fi
-}
-
+#checks if a commit is valid and returns echoed if it's
 function commitid_orhead()
 {
    local commit
@@ -367,6 +361,7 @@ function commitid_orhead()
    echo $commit
 }
 
+#marks the remote head to the provided commit id
 function catchup()
 {
    local commit=$1
@@ -384,6 +379,25 @@ function catchup()
    rm -Rf $dir
 }
 
+#process the user request to get the remote log
+function process_log()
+{
+   if [ "$1" = "log" ]; then
+      echo $(cyan "retrieving remote log")
+      remotehead rcommit
+
+      commit=$(expand_commitid $rcommit)
+
+      if [ "$commit" = "" ]; then
+         echo "The remote repository is set to the INVALID (or ahead local repository) commit id: $rcommit"
+      else
+         git log $commit
+      fi
+      end_process
+   fi
+}
+
+#process the user request to catchup
 function process_catchup()
 {
    if [ "$1" = "catchup" ]; then
@@ -400,6 +414,7 @@ function process_catchup()
    fi
 }
 
+#process the user request to push
 function process_push()
 {
    if [ "$1" = "push" ]; then
@@ -437,6 +452,7 @@ function process_push()
 }
 
 show_help $@
+init
 validate_tool
 validate_scope
 
@@ -445,37 +461,5 @@ echo "TOOL $TOOL, SCOPE: $SCOPE"
 process_log "${@:1}"
 process_catchup "${@:1}"
 process_push "${@:1}"
-end_process   
 
 
-
-echo working on scope \"$SCOPE\". \(to switch to \"newscope\" use: \"git config ncftp.current-scope newscope\" \)
-
-function get_config()
-{
-   retval=""
-   retval=$(git config ncftp.$SCOPE.$1)
-   echo $retval
-}
-
-function get_req_config()
-{
-   retval=$(get_config $1)
-   if [ "$retval" = "" ]; then
-      echoerr "Configuration \"$1\" for scope \"$SCOPE\" is required"
-      echoerr "Please define it using:"
-      echoerr "   git config ncftp.$SCOPE.$1 \"some value\""
-      end_process
-   fi
-   echo $retval
-}
-
-user=$(get_req_config user)
-password=$(get_req_config password)
-host=$(get_req_config host)
-remote_dir=$(get_req_config remote-dir)
-
-echo "listing remote directory"
-echo $(ncftpls -u$user -p$password ftp://$host$remote_dir)
-
-exit
