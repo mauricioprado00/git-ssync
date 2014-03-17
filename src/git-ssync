@@ -545,11 +545,53 @@ function process_status()
    fi   
 }
 
+function get_ssync_response()
+{
+   local _result=$1
+   $_result=grep "git-ssync-response" <<< "$1"
+   echoerr $_result
+   echo ${_result/git-ssync-response: /}
+}
+
+function retval()
+{
+   eval $1'="${@:2}"'
+}
+
+function tool_command()
+{
+   local _variable=$1
+   local _toolname=$2
+   local _result
+   local _bin=git-ssync-$_toolname
+   local _binparams="${@:3}"
+   _result=$(get_ssync_response "$("$_bin" $_binparams)")
+   retval $_variable $_result
+}
+
+function tool_exists()
+{
+   local _variable=$1
+   local _toolname=$2
+   #get_ssync_response "$(git-ssync-$1 toolname)"
+   tool_command result $_toolname toolname
+   retval $_variable $result
+}
+
 function process_configure()
 {
    if [ "$1" = "configure" ]; then
       if [ "$2" = "ncftp" ]; then
-
+         
+         tool_exists git_ssync_return $2
+         
+         if [ "$git_ssync_return" = "" ]; then
+            echo "does not exists"
+         else
+            echo "does exists"
+         fi
+	 
+         end_process
          echo $(cyan "configuring ncftp")
          echo $(blue "adding global ssync tool ncftp")
          #configure params for tool
